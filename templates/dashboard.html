@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Expense Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <!-- Leaflet CSS for map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f0f0f; --surface: #1a1a1a; --surface2: #242424;
+      --border: #2e2e2e; --accent: #c8f96a; --accent2: #f96a6a;
+      --text: #f0f0ee; --muted: #888884;
+      --font: 'Syne', sans-serif; --mono: 'DM Mono', monospace;
+    }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 40px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--bg); z-index: 1000;
+    }
+    .logo { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    .logo span { color: var(--accent); }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .username-badge {
+      font-family: var(--mono); font-size: 12px; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 4px 12px; border-radius: 20px;
+    }
+    .btn-logout {
+      font-family: var(--font); font-size: 12px; font-weight: 600;
+      color: var(--accent2); background: rgba(249,106,106,0.08);
+      border: 1px solid rgba(249,106,106,0.25); padding: 5px 14px;
+      border-radius: 20px; cursor: pointer; text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn-logout:hover { background: rgba(249,106,106,0.15); }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 40px 40px 80px; }
+
+    /* Total Banner */
+    .total-banner {
+      background: var(--accent); color: #0f0f0f; border-radius: 16px;
+      padding: 32px 40px; margin-bottom: 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      animation: fadeUp 0.4s ease;
+    }
+    .total-label { font-size: 13px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.7; margin-bottom: 6px; }
+    .total-amount { font-size: 52px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+    .total-amount .currency { font-size: 28px; font-weight: 600; vertical-align: super; margin-right: 4px; }
+    .total-count { font-family: var(--mono); font-size: 13px; opacity: 0.65; margin-top: 8px; }
+    .live-clock { text-align: right; }
+    .clock-time { font-size: 28px; font-weight: 800; letter-spacing: -1px; font-family: var(--mono); }
+    .clock-date { font-size: 13px; opacity: 0.65; margin-top: 4px; font-family: var(--mono); }
+
+    /* MAP */
+    .map-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden; margin-bottom: 32px;
+      animation: fadeUp 0.45s ease;
+    }
+    .map-header {
+      padding: 18px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .map-title { font-size: 13px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+    .map-legend { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
+    #expense-map { height: 380px; width: 100%; }
+
+    /* Main Grid */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; animation: fadeUp 0.5s ease; }
+    .card-title { font-size: 13px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 24px; }
+
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    input, select {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 16px; color: var(--text);
+      font-family: var(--mono); font-size: 14px; outline: none; transition: border-color 0.2s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    select option { background: var(--surface2); }
+
+    /* Location button */
+    .location-row { display: flex; gap: 10px; align-items: center; }
+    .btn-locate {
+      white-space: nowrap; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 10px; padding: 12px 14px;
+      font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: border-color 0.2s; display: flex; align-items: center; gap: 6px;
+    }
+    .btn-locate:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-locate.got { border-color: var(--accent); color: var(--accent); }
+    .location-status { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+    .btn-add {
+      width: 100%; margin-top: 8px; background: var(--accent); color: #0f0f0f;
+      border: none; border-radius: 10px; padding: 14px; font-family: var(--font);
+      font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-add:hover { opacity: 0.88; }
+    .btn-add:active { transform: scale(0.98); }
+
+    /* Expense list */
+    .expense-list { display: flex; flex-direction: column; gap: 10px; }
+    .expense-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 20px; animation: fadeUp 0.35s ease;
+      transition: border-color 0.2s; cursor: pointer;
+    }
+    .expense-item:hover { border-color: var(--accent); }
+    .expense-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .expense-left { display: flex; flex-direction: column; gap: 4px; }
+    .expense-title { font-size: 15px; font-weight: 600; }
+    .expense-category {
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 2px 8px; border-radius: 20px; display: inline-block; width: fit-content;
+    }
+    .expense-right { display: flex; align-items: center; gap: 16px; }
+    .expense-amount { font-family: var(--mono); font-size: 16px; font-weight: 500; color: var(--accent); }
+    .btn-delete {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      color: var(--muted); padding: 6px 10px; font-size: 13px; cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s; font-family: var(--font);
+    }
+    .btn-delete:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(249,106,106,0.08); }
+
+    .expense-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px;
+    }
+    .expense-datetime { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+    .has-location { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+    .no-location  { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
+    .empty-icon  { font-size: 36px; margin-bottom: 12px; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 720px) {
+      main { padding: 24px 20px 60px; }
+      .grid { grid-template-columns: 1fr; }
+      .total-amount { font-size: 38px; }
+      header { padding: 16px 20px; }
+      .live-clock { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">expense<span>.</span>track</div>
+  <div class="header-right">
+    <span class="username-badge">👤 {{ username }}</span>
+    <a href="/logout" class="btn-logout">Log out</a>
+  </div>
+</header>
+
+<main>
+
+  <!-- Total Banner -->
+  <div class="total-banner">
+    <div>
+      <div class="total-label">Total Spent</div>
+      <div class="total-amount"><span class="currency">₹</span>{{ "%.2f"|format(total) }}</div>
+      <div class="total-count">{{ expenses|length }} expense{{ 's' if expenses|length != 1 else '' }} recorded</div>
+    </div>
+    <div class="live-clock">
+      <div class="clock-time" id="clock">--:--:--</div>
+      <div class="clock-date" id="clock-date">Loading...</div>
+    </div>
+  </div>
+
+  <!-- MAP SECTION -->
+  <div class="map-section">
+    <div class="map-header">
+      <span class="map-title">📍 Expense Location Map</span>
+      <span class="map-legend"><span class="legend-dot"></span> Each pin = one expense</span>
+    </div>
+    <div id="expense-map"></div>
+  </div>
+
+  <div class="grid">
+
+    <!-- Add Expense Form -->
+    <div class="card">
+      <div class="card-title">Add Expense</div>
+      <form action="/add" method="post" id="expense-form">
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" name="title" placeholder="e.g. Lunch, Bus fare" required />
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category" required>
+            <option value="" disabled selected>Select category</option>
+            <option value="Food">Food</option>
+            <option value="Transport">Transport</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Health">Health</option>
+            <option value="Education">Education</option>
+            <option value="Bills">Bills</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" name="amount" placeholder="0.00" step="0.01" min="0" required />
+        </div>
+
+        <!-- Location -->
+        <div class="form-group">
+          <label>Location</label>
+          <div class="location-row">
+            <input type="text" id="location-display" placeholder="Click to detect location" readonly style="cursor:pointer;" onclick="getLocation()"/>
+            <button type="button" class="btn-locate" id="locate-btn" onclick="getLocation()">📍 Detect</button>
+          </div>
+          <div class="location-status" id="location-status">Location is optional</div>
+          <!-- hidden fields sent to server -->
+          <input type="hidden" name="latitude"  id="lat-input" value=""/>
+          <input type="hidden" name="longitude" id="lng-input" value=""/>
+        </div>
+
+        <button type="submit" class="btn-add">+ Add Expense</button>
+      </form>
+    </div>
+
+    <!-- Expense List -->
+    <div>
+      <div class="card-title" style="padding-left:4px">Your Expenses</div>
+      <div class="expense-list">
+        {% if expenses %}
+          {% for expense in expenses %}
+          <div class="expense-item"
+               {% if expense.latitude and expense.longitude %}
+               onclick="flyToMarker({{ expense.latitude }}, {{ expense.longitude }}, '{{ expense.title }}')"
+               title="Click to see on map"
+               {% endif %}>
+            <div class="expense-top">
+              <div class="expense-left">
+                <span class="expense-title">{{ expense.title }}</span>
+                <span class="expense-category">{{ expense.category }}</span>
+              </div>
+              <div class="expense-right">
+                <span class="expense-amount">₹{{ "%.2f"|format(expense.amount) }}</span>
+                <a href="/delete/{{ expense.id }}" onclick="event.stopPropagation()">
+                  <button class="btn-delete">Delete</button>
+                </a>
+              </div>
+            </div>
+            <div class="expense-meta">
+              <span class="expense-datetime">
+                {% if expense.created_at %}
+                  {{ expense.created_at.strftime("%d %b %Y · %I:%M %p") }}
+                {% else %}
+                  Date not recorded
+                {% endif %}
+              </span>
+              {% if expense.latitude and expense.longitude %}
+                <span class="has-location">📍 Location tracked</span>
+              {% else %}
+                <span class="no-location">📍 No location</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <div>No expenses yet. Add one!</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  // ── Live Clock ───────────────────────────────────────
+  function updateClock() {
+    const now  = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('clock-date').textContent =
+      now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ── Map Setup ────────────────────────────────────────
+  const map = L.map('expense-map').setView([20.5937, 78.9629], 5); // default: India
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  // Custom green marker icon
+  const greenIcon = L.divIcon({
+    className: '',
+    html: `<div style="
+      width:14px; height:14px; border-radius:50%;
+      background:#c8f96a; border:3px solid #0f0f0f;
+      box-shadow:0 0 0 2px #c8f96a;
+    "></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+    popupAnchor: [0, -10]
+  });
+
+  // ── Plot expenses from server ────────────────────────
+  const expenses = [
+    {% for expense in expenses %}
+      {% if expense.latitude and expense.longitude %}
+      {
+        lat:      {{ expense.latitude }},
+        lng:      {{ expense.longitude }},
+        title:    "{{ expense.title }}",
+        amount:   "₹{{ '%.2f'|format(expense.amount) }}",
+        category: "{{ expense.category }}",
+        time:     "{% if expense.created_at %}{{ expense.created_at.strftime('%d %b %Y · %I:%M %p') }}{% endif %}"
+      },
+      {% endif %}
+    {% endfor %}
+  ];
+
+  const markers = {};
+
+  if (expenses.length > 0) {
+    const bounds = [];
+    expenses.forEach((e, i) => {
+      const marker = L.marker([e.lat, e.lng], { icon: greenIcon })
+        .addTo(map)
+        .bindPopup(`
+          <div style="font-family:'Syne',sans-serif; min-width:160px;">
+            <div style="font-weight:700; font-size:14px; margin-bottom:4px;">${e.title}</div>
+            <div style="font-size:12px; color:#555; margin-bottom:2px;">${e.category}</div>
+            <div style="font-size:16px; font-weight:700; color:#5a8a00; margin-bottom:4px;">${e.amount}</div>
+            <div style="font-size:11px; color:#888;">${e.time}</div>
+          </div>
+        `);
+      markers[`${e.lat},${e.lng}`] = marker;
+      bounds.push([e.lat, e.lng]);
+    });
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }
+
+  // Click expense item → fly to pin on map
+  function flyToMarker(lat, lng, title) {
+    map.flyTo([lat, lng], 15, { duration: 1.2 });
+    const key = `${lat},${lng}`;
+    if (markers[key]) markers[key].openPopup();
+    document.getElementById('expense-map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // ── Get User Location ────────────────────────────────
+  let userMarker = null;
+
+  function getLocation() {
+    const status = document.getElementById('location-status');
+    const btn    = document.getElementById('locate-btn');
+    status.textContent = '⏳ Detecting your location...';
+
+    if (!navigator.geolocation) {
+      status.textContent = '❌ Geolocation not supported by your browser';
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+
+        document.getElementById('lat-input').value = lat;
+        document.getElementById('lng-input').value = lng;
+        document.getElementById('location-display').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+        status.textContent = '✅ Location captured!';
+        btn.classList.add('got');
+        btn.textContent = '✅ Got it';
+
+        // Show user's current location on map
+        if (userMarker) map.removeLayer(userMarker);
+        userMarker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: '',
+            html: `<div style="
+              width:16px; height:16px; border-radius:50%;
+              background:#f96a6a; border:3px solid #0f0f0f;
+              box-shadow:0 0 0 2px #f96a6a;
+            "></div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+            popupAnchor: [0, -10]
+          })
+        }).addTo(map).bindPopup('<b>📍 Your current location</b>').openPopup();
+
+        map.flyTo([lat, lng], 15, { duration: 1.2 });
+        document.getElementById('expense-map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      },
+      (err) => {
+        status.textContent = '❌ Could not get location. Please allow location access.';
+      }
+    );
+  }
+</script>
+
+</body>
+</html>
